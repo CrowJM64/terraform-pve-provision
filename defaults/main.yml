@@ -1,0 +1,11 @@
+#SPDX-License-Identifier: MIT-0
+---
+# defaults file for terraform-pve-provision
+pve_terraform_role: Terraformer
+
+terraform_user:
+  - user: Terraform
+    key: "ssh-ed25519 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    groups: Terraformer
+    shell: /bin/bash
+    admin: true
