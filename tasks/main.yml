@@ -1,43 +1,94 @@
 #SPDX-License-Identifier: MIT-0
 ---
 # tasks file for terraform-pve-provision
-- name: Create required groups
+- name: Install sudo
+  ansible.builtin.package:
+    name:
+      - sudo
+      - python3-proxmoxer
+    state: present
+
+- name: Create Teraform PAM Group
   ansible.builtin.group:
-    name: "{{ item.groups }}"
+    name: "{{ terraform_group }}"
     system: false
     state: present
-  loop: "{{ ssh_users_and_keys }}"
 
-- name: Ensure SSH Users Exist
+- name: Create Terraform PAM User (Linux Backend)
   ansible.builtin.user:
-    name: "{{ item.user }}"
+    name: "{{ terraform_user }}"
     shell: /bin/bash
-    groups: "{{ item.groups }}"
+    groups: "{{ terraform_group }}"
     append: true
-  loop: "{{ ssh_users_and_keys }}"
-
-- name: Add User to Sudo (DEB)
-  ansible.builtin.user:
-    name: "{{ item.user }}"
-    groups: sudo
-    append: true
-  loop: "{{ ssh_users_and_keys }}"
-  when:
-    - item.admin == true
-    - ansible_facts['os_family'] == "Debian"
 
 - name: Ensure SSH Directories Exist
   ansible.builtin.file:
-    path: "/home/{{ item.user }}/.ssh"
+    path: "/home/{{ terraform_user }}/.ssh"
     state: directory
-    owner: "{{ item.user }}"
+    owner: "{{ terraform_user }}"
     mode: '0700'
-  loop: "{{ ssh_users_and_keys }}"
 
 - name: Deploy SSH PubKeys for SSH Users
   ansible.posix.authorized_key:
-    user: "{{ item.user }}"
+    user: "{{ terraform_user }}"
     state: present
-    key: "{{ item.key }}"
-  loop: "{{ ssh_users_and_keys }}"
+    key: "{{ terraform_ssh_key }}"
 
+- name: Add User to Sudo
+  ansible.builtin.user:
+    name: "{{ terraform_user }}"
+    groups:
+      - sudo
+      - "{{ terraform_group }}"
+    append: true
+
+- name: Create Terraform Proxmox Role
+  community.proxmox.proxmox_role:
+    api_host: localhost
+    api_user: root@pam   ###### TO CHANGE TO VAR, TO BE SET IN VAULT
+    api_password: root   ###### TO CHANGE TO VAR, TO BE SET IN VAULT
+    validate_certs: false
+    roleid: "{{ terraform_pve_role }}"
+    privs:
+      - Datastore.Allocate
+      - Datastore.AllocateSpace
+      - Datastore.AllocateTemplate
+      - Datastore.Audit
+      - Pool.Allocate
+      - Sys.Audit
+      - Sys.Console
+      - Sys.Modify
+      - VM.Allocate
+      - VM.Audit
+      - VM.Clone
+      - VM.Config.CDROM
+      - VM.Config.Cloudinit
+      - VM.Config.CPU
+      - VM.Config.Disk
+      - VM.Config.HWType
+      - VM.Config.Memory
+      - VM.Config.Network
+      - VM.Config.Options
+      - VM.Migrate
+      - VM.PowerMgmt
+      - SDN.Use
+
+- name: Create Terraform PVE User (Proxmox API)
+  community.proxmox.proxmox_user:
+    api_host: localhost
+    api_user: root@pam   ###### TO CHANGE TO VAR, TO BE SET IN VAULT
+    api_password: root   ###### TO CHANGE TO VAR, TO BE SET IN VAULT
+    validate_certs: false
+    name: "{{ terraform_user }}@pam"
+    comment: Terraform user created by Ansible.
+    email: "{{ terraform_user_email }}"
+    enable: true
+    firstname: Terraform
+    lastname: User
+    groups:
+      - Terraform
+    tokens:
+      - tokenid: "{{ terraform_token_name }}"
+        comment: Terraform access Token
+        privsep: false
+        expire: 0

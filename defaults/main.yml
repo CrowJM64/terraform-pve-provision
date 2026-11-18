@@ -1,11 +1,10 @@
 #SPDX-License-Identifier: MIT-0
 ---
 # defaults file for terraform-pve-provision
-pve_terraform_role: Terraformer
-
-terraform_user:
-  - user: Terraform
-    key: "ssh-ed25519 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-    groups: Terraformer
-    shell: /bin/bash
-    admin: true
+terraform_user: Terraform
+terraform_group: Terraform
+terraform_user_password: XXXXXXXXX # Set in Ansible Vault
+terraform_user_email: example@example.com
+terraform_pve_role: Terraformer
+terraform_ssh_key: "ssh-ed25519 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+terraform_token_name: terraform-token # Desired name for the Token the Terraform user will use.
