@@ -1,4 +1,4 @@
-# Ansible Role for SSHD Hardening
+# Ansible Role for Terraform user provisioning on a Proxmox node.
 **Author/Maintainer:** Josh Murphy
 
 ## Overview
