@@ -1,4 +1,3 @@
-# WORK IN PROGRESS ROLE
 # Ansible Role for SSHD Hardening
 **Author/Maintainer:** Josh Murphy
 
