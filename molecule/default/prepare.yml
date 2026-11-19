@@ -2,5 +2,12 @@
 - name: Prepare
   hosts: all
   gather_facts: false
-
-#  tasks:
+  tasks:
+    - name: Wait for systemd to finish initializing
+      ansible.builtin.command: systemctl is-system-running --wait
+      register: systemd_status
+      until: systemd_status.rc == 0 or 'degraded' in systemd_status.stdout
+      retries: 30
+      delay: 2
+      changed_when: false
+      failed_when: false

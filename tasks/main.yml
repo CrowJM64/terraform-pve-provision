@@ -5,8 +5,7 @@
   ansible.builtin.package:
     name:
       - sudo
-      - python3-proxmoxer
-    state: present
+    state: latest
 
 - name: Create Teraform PAM Group
   ansible.builtin.group:
@@ -14,12 +13,14 @@
     system: false
     state: present
 
-- name: Create Terraform PAM User (Linux Backend)
+- name: Create Terraform User (Linux PAM)
   ansible.builtin.user:
     name: "{{ terraform_user }}"
+    password: "{{ terraform_user_password }}"
     shell: /bin/bash
     groups: "{{ terraform_group }}"
     append: true
+    expires: -1
 
 - name: Ensure SSH Directories Exist
   ansible.builtin.file:
@@ -34,7 +35,7 @@
     state: present
     key: "{{ terraform_ssh_key }}"
 
-- name: Add User to Sudo
+- name: Add User to Sudo and Terrform group
   ansible.builtin.user:
     name: "{{ terraform_user }}"
     groups:
@@ -42,53 +43,108 @@
       - "{{ terraform_group }}"
     append: true
 
-- name: Create Terraform Proxmox Role
-  community.proxmox.proxmox_role:
-    api_host: localhost
-    api_user: root@pam   ###### TO CHANGE TO VAR, TO BE SET IN VAULT
-    api_password: root   ###### TO CHANGE TO VAR, TO BE SET IN VAULT
-    validate_certs: false
-    roleid: "{{ terraform_pve_role }}"
-    privs:
-      - Datastore.Allocate
-      - Datastore.AllocateSpace
-      - Datastore.AllocateTemplate
-      - Datastore.Audit
-      - Pool.Allocate
-      - Sys.Audit
-      - Sys.Console
-      - Sys.Modify
-      - VM.Allocate
-      - VM.Audit
-      - VM.Clone
-      - VM.Config.CDROM
-      - VM.Config.Cloudinit
-      - VM.Config.CPU
-      - VM.Config.Disk
-      - VM.Config.HWType
-      - VM.Config.Memory
-      - VM.Config.Network
-      - VM.Config.Options
-      - VM.Migrate
-      - VM.PowerMgmt
-      - SDN.Use
+- name: Add $PATH to Bashrc, including /usr/sbin
+  ansible.builtin.lineinfile:
+    path: "/home/{{ terraform_user }}/.bashrc"
+    regexp: '^PATH=/'
+    line: 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+    create: yes
 
-- name: Create Terraform PVE User (Proxmox API)
-  community.proxmox.proxmox_user:
-    api_host: localhost
-    api_user: root@pam   ###### TO CHANGE TO VAR, TO BE SET IN VAULT
-    api_password: root   ###### TO CHANGE TO VAR, TO BE SET IN VAULT
-    validate_certs: false
-    name: "{{ terraform_user }}@pam"
-    comment: Terraform user created by Ansible.
-    email: "{{ terraform_user_email }}"
-    enable: true
-    firstname: Terraform
-    lastname: User
-    groups:
-      - Terraform
-    tokens:
-      - tokenid: "{{ terraform_token_name }}"
-        comment: Terraform access Token
-        privsep: false
-        expire: 0
+- name: Lock down Terraform user's home directory
+  ansible.builtin.file:
+    path: "/home/{{ terraform_user }}"
+    owner: "{{ terraform_user }}"
+    group: "{{ terraform_user }}"
+    mode: '0700'
+    recurse: yes
+
+- name: Copy Terraform user's sudoerfile
+  ansible.builtin.template:
+    src: templates/terraform_sudoerfile.yml.j2
+    dest: "/etc/sudoers.d/{{ terraform_user }}"
+    owner: root
+    group: root
+    mode: '0600'
+
+- name: Create Terraform PVE role
+  ansible.builtin.command:
+    cmd: pveum role add "{{ terraform_pve_role }}" -privs "Datastore.Allocate,Datastore.AllocateSpace,Datastore.AllocateTemplate,Datastore.Audit,Pool.Allocate,Sys.Audit,Sys.Console,Sys.Modify,VM.Allocate,VM.Audit,VM.Clone,VM.Config.CDROM,VM.Config.Cloudinit,VM.Config.CPU,VM.Config.Disk,VM.Config.HWType,VM.Config.Memory,VM.Config.Network,VM.Config.Options,VM.Migrate,VM.PowerMgmt,SDN.Use"
+  register: pve_role_creation
+  changed_when:
+    - "'already exists' not in pve_role_creation.stderr"
+  failed_when:
+    - "'failed' in pve_role_creation.stderr"
+    - "'already exists' not in pve_role_creation.stderr"
+    - "pve_role_creation.rc != 0"
+
+- name: Check role membership
+  ansible.builtin.command:
+    cmd: pveum acl list
+  register: pve_acl
+  changed_when: pve_acl.rc != 0
+
+#- name: Print Role Membership
+#  ansible.builtin.debug:
+#    msg: "{{ pve_acl.stdout_lines }}"
+
+- name: Add Terraform PAM user to PVE Realm
+  ansible.builtin.command:
+    cmd: pveum user add "{{ terraform_user }}"@pam
+  register: pve_user_creation
+  when:
+    - '"{{ terraform_pve_role }} │ user │ {{ terraform_user }}@pam" not in pve_acl.stdout'
+  changed_when:
+    - "'created' in pve_user_creation.stderr"
+  failed_when: 
+    - "'already exists' not in pve_user_creation.stderr"
+    - "pve_user_creation.rc != 0"
+
+- name: Assign Terraform PVE Role to Terraform User
+  ansible.builtin.command:
+    cmd: pveum acl modify / --users "{{ terraform_user }}"@pam --roles "{{ terraform_pve_role }}"
+  register: pve_role_assigned
+  changed_when: pve_role_assigned.rc != 0
+
+- name: Check if Terraform Token exists.
+  ansible.builtin.command:
+    cmd: pveum user token list "{{ terraform_user }}"@pam
+  register: terraform_token_info
+  changed_when: terraform_token_info.rc != 0
+
+- name: Skip Token creation if token exists
+  ansible.builtin.debug:
+    msg: "A token with the name {{ terraform_token_name }} already exists. Remove the token or change your desired token name."
+  when: '"{{ terraform_token_name }}" in terraform_token_info.stdout'
+
+- name: Create Terraform user token
+  ansible.builtin.command:
+    cmd: pveum user token add "{{ terraform_user }}"@pam "{{ terraform_token_name }}" --privsep 0
+  register: pve_token_creation
+  when: '"{{ terraform_token_name }}" not in terraform_token_info.stdout'
+  failed_when: 
+    - "'Token already exists' in pve_token_creation.stderr"
+
+#- name: Print Terraform user token
+#  ansible.builtin.debug:
+#    msg: "{{ pve_token_creation.stdout_lines }}"
+#  when: '"{{ terraform_token_name }}" not in terraform_token_info.stdout'
+
+- name: Write Token to /root/
+  ansible.builtin.template:
+    src: templates/terraform_token.yml.j2
+    dest: "/root/.{{ terraform_token_name }}"
+  when: '"{{ terraform_token_name }}" not in terraform_token_info.stdout'
+
+- name: Lock down Terraform user's home directory
+  ansible.builtin.file:
+    path: "/root/.{{ terraform_token_name }}"
+    owner: root
+    group: root
+    mode: '0400'
+
+- name: Retrieve Token
+  ansible.builtin.copy:
+    src: "/root/.{{ terraform_token_name }}"
+    dest: "/root/.{{ terraform_token_name }}"
+    remote_src: yes
+

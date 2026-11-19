@@ -1,0 +1,3 @@
+# pvesm required for storage management through Terraform.
+# qm required for VM management and creation through Terraform.
+{{ terraform_user }} ALL=(root) NOPASSWD: /usr/sbin/pvesm, /usr/sbin/qm *, /usr/bin/tee /var/lib/vz/*

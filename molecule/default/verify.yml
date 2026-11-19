@@ -4,6 +4,58 @@
 - name: Verify
   hosts: all
   gather_facts: true
+  vars:
+    terraform_user: Terraform
+    terraform_group: Terraform
+    terraform_user_password: XXXXXXXXX
+    terraform_user_email: example@example.com
+    terraform_pve_role: Terraformer
+    terraform_ssh_key: "ssh-ed25519 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    terraform_token_name: terraform-token
+  tasks:
+    - name: Get Terraform user information
+      ansible.builtin.command: "id {{ terraform_user }}"
+      register: terraform_user_info
 
-#  vars:
-#  tasks:
+    - name: Check Terraform user exists
+      ansible.builtin.assert:
+        that:
+          - "'no such user' not in terraform_user_info.stdout"
+        success_msg: "Terraform user exists."
+        fail_msg: "Terraform user does not exist."
+
+    - name: Check Terraform user is in Sudo group
+      ansible.builtin.assert:
+        that: '"sudo" and "{{ terraform_group }}" in terraform_user_info.stdout'
+        success_msg: 'Terraform user is in Sudo and Terraform groups.'
+        fail_msg: "ansible is only in: terraform_user_info.stdout"
+
+    - name: Get Terraform SSH PubKey information
+      ansible.builtin.command: "cat /home/{{ terraform_user }}/.ssh/authorized_keys"
+      register: terraform_ssh_keys
+
+    - name: Check Terraform SSH PubKey exists
+      ansible.builtin.assert:
+        that: '"{{ terraform_ssh_key }}" in terraform_ssh_keys.stdout'
+        success_msg: '"{{ terraform_ssh_key }}" is in the Terraform user`s authorized_keys.'
+        fail_msg: '"{{ terraform_ssh_key }}" is NOT in the Terraform user`s authorized_keys.'
+
+    - name: Get PVE Realm roles
+      ansible.builtin.command: "pveum role list"
+      register: terraform_roles
+
+    - name: Check Terraformer role exists
+      ansible.builtin.assert:
+        that: '"Terraformer" in terraform_roles.stdout'
+        success_msg: "Terraformer PVE Role exists."
+        fail_msg: "The PVE role Terraformer does not exist."
+
+    - name: Get terraform-token information
+      ansible.builtin.command: "ls /root/.{{ terraform_token_name }}"
+      register: terraform_token_stats
+
+    - name: Ensure terraform-token exists
+      ansible.builtin.assert:
+        that: '"No such file or directory" not in terraform_token_stats.stdout'
+        success_msg: "Terraform Token exists."
+        fail_msg: "Terraform Token does not exist."

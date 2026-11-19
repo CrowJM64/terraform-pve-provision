@@ -9,7 +9,8 @@ This Ansible role provisions a Terraform user on a Proxmox host with all the rel
 ## Requirements
 ------------
 
-This role must be applied to a Proxmox host, on PVE verion 8 or above.
+This role must be applied to a Proxmox host, on PVE verion 8 or above on which the following are true:
+- Sudo is installed
 
 ## Role Variables
 --------------

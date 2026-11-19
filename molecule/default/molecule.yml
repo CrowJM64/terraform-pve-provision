@@ -12,17 +12,16 @@ dependency:
 driver: {name: containers}
 
 platforms:
-# RedHat
   - name: pve
     image: docker.io/dockurr/proxmox:latest # Must use Fully Qualified name of Image and domain to pull from to be compatible with Podman.
     pre_build_image: true
+    command: "/sbin/init --log-target=console --log-level=notice"
+    override_command: false
     privileged: true # Needed for systemd within containers.
-    volumes:
-      - /sys/fs/cgroup:/sys/fs/cgroup:rw # Needed for systemd within containers.
-      - /dev/vfio:/dev/vfio
-      - /usr/lib/modules:/usr/lib/modules:ro
-      - /sys/kernel/security:/sys/kernel/security
-      
+    devices:
+      - /dev/kvm:/dev/kvm
+    env:
+      PASSWORD: "defaultpassword"
 
 ansible:
   cfg:
