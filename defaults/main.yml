@@ -6,5 +6,5 @@ terraform_group: Terraform
 terraform_user_password: XXXXXXXXX # Set in Ansible Vault
 terraform_user_email: example@example.com
 terraform_pve_role: Terraformer # Name of the role created within the Proxmox API
-terraform_ssh_key: "ssh-ed25519 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" # Set in Ansible Vault. SSH PubKey that the Terraform user will later use to authenticate to the Proxmox node.
+terraform_ssh_key: "ssh-ed25519 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" # Reccomended to set this in the relevant Ansible Vault. This is the SSH PubKey that the Terraform user will later use to authenticate to the Proxmox node.
 terraform_token_name: terraform-token # Desired name for the Token the Terraform user will use.

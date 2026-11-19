@@ -135,16 +135,9 @@
     dest: "/root/.{{ terraform_token_name }}"
   when: '"{{ terraform_token_name }}" not in terraform_token_info.stdout'
 
-- name: Lock down Terraform user's home directory
+- name: Lock down Terraform Token
   ansible.builtin.file:
     path: "/root/.{{ terraform_token_name }}"
     owner: root
     group: root
     mode: '0400'
-
-- name: Retrieve Token
-  ansible.builtin.copy:
-    src: "/root/.{{ terraform_token_name }}"
-    dest: "/root/.{{ terraform_token_name }}"
-    remote_src: yes
-

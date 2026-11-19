@@ -15,8 +15,7 @@ galaxy_info:
     - proxmox
     - terraform
 
-collections:
-  - community.proxmox
+collections: []
 
 dependencies: []
   # List your role dependencies here, one per line. Be sure to remove the '[]' above,
