@@ -1,12 +1,6 @@
 #SPDX-License-Identifier: MIT-0
 ---
 # tasks file for terraform-pve-provision
-- name: Install sudo
-  ansible.builtin.package:
-    name:
-      - sudo
-    state: latest
-
 - name: Create Teraform PAM Group
   ansible.builtin.group:
     name: "{{ terraform_group }}"
