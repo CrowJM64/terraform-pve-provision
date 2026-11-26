@@ -135,3 +135,22 @@
     owner: root
     group: root
     mode: '0400'
+
+- name: Check if snippets folder exists
+  ansible.builtin.stat:
+    path: /var/lib/vz/snippets/
+  register: snippets_info
+
+- name: Create snippets folder
+  ansible.builtin.file:
+    path: /var/lib/vz/snippets/
+    state: directory
+    mode: '0644'
+    owner: root
+    group: root
+  when: not snippets_info.stat.exists
+
+- name: Enable Snippets
+  ansible.builtin.command:
+    cmd: pvesm set local --content images,rootdir,vztmpl,backup,iso,snippets
+  when: not snippets_info.stat.exists
